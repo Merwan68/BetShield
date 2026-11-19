@@ -92,15 +92,8 @@ fun MainAppRoot(viewModel: MainViewModel = viewModel()) {
     var showPermissionSetup by remember {
         mutableStateOf(
             try {
-                val missingVpn = VpnService.prepare(context) != null
-                val missingAcc = !AccessibilityHelper.isAccessibilityServiceEnabled(context)
-                val missingNotif = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
-                    androidx.core.content.ContextCompat.checkSelfPermission(
-                        context,
-                        android.Manifest.permission.POST_NOTIFICATIONS
-                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                missingVpn || missingAcc || missingNotif
-            } catch (_: Throwable) {
+                VpnService.prepare(context) != null || !AccessibilityHelper.isAccessibilityServiceEnabled(context)
+            } catch (e: Throwable) {
                 false
             }
         )
@@ -113,12 +106,12 @@ fun MainAppRoot(viewModel: MainViewModel = viewModel()) {
     }
 
     LaunchedEffect(uiState.isProtectionActive) {
-        try {
-            if (uiState.isProtectionActive && VpnService.prepare(context) == null) {
+        if (uiState.isProtectionActive && VpnService.prepare(context) == null) {
+            try {
                 DnsVpnService.start(context)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Throwable) {
-            e.printStackTrace()
         }
     }
 

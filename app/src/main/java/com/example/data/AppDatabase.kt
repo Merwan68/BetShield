@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "betshield_database.db"
                 )
-                    .fallbackToDestructiveMigration(true)
+                    .fallbackToDestructiveMigration()
                     .addCallback(DatabasePreloadCallback())
                     .build()
                 INSTANCE = instance
@@ -59,7 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE?.let { database ->
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            seedDatabaseIfNeeded(database)
+                            seedDatabase(database)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
@@ -72,7 +72,7 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE?.let { database ->
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            seedDatabaseIfNeeded(database)
+                            seedDatabase(database)
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
@@ -80,34 +80,24 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             }
 
-            private suspend fun seedDatabaseIfNeeded(database: AppDatabase) {
+            private suspend fun seedDatabase(database: AppDatabase) {
                 try {
-                    val domainDao = database.blockedDomainDao()
-                    val appDao = database.blockedAppDao()
-                    val metaDao = database.syncMetadataDao()
-
-                    val currentCount = domainDao.getDomainCount()
-                    val storedVersion = metaDao.getMetadata("catalog_version")
-                        ?.value?.toLongOrNull() ?: 0L
-
-                    if (currentCount == 0 || storedVersion < InitialGamblingCatalog.INITIAL_CATALOG_VERSION) {
-                        domainDao.insertDomainsIfAbsent(InitialGamblingCatalog.defaultDomains)
-                        appDao.insertAppsIfAbsent(InitialGamblingCatalog.defaultApps)
-                        metaDao.upsertMetadata(
-                            SyncMetadataEntity(
-                                key = "catalog_version",
-                                value = InitialGamblingCatalog.INITIAL_CATALOG_VERSION.toString(),
-                                updatedAt = System.currentTimeMillis()
-                            )
+                    database.blockedDomainDao().insertDomains(InitialGamblingCatalog.defaultDomains)
+                    database.blockedAppDao().insertApps(InitialGamblingCatalog.defaultApps)
+                    database.syncMetadataDao().upsertMetadata(
+                        SyncMetadataEntity(
+                            key = "catalog_version",
+                            value = InitialGamblingCatalog.INITIAL_CATALOG_VERSION.toString(),
+                            updatedAt = System.currentTimeMillis()
                         )
-                        metaDao.upsertMetadata(
-                            SyncMetadataEntity(
-                                key = "last_synced_at",
-                                value = System.currentTimeMillis().toString(),
-                                updatedAt = System.currentTimeMillis()
-                            )
+                    )
+                    database.syncMetadataDao().upsertMetadata(
+                        SyncMetadataEntity(
+                            key = "last_synced_at",
+                            value = System.currentTimeMillis().toString(),
+                            updatedAt = System.currentTimeMillis()
                         )
-                    }
+                    )
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

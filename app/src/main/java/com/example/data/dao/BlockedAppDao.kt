@@ -47,12 +47,6 @@ interface BlockedAppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertApps(apps: List<BlockedAppEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAppsIfAbsent(apps: List<BlockedAppEntity>)
-
-    @Query("SELECT COUNT(*) FROM blocked_apps")
-    suspend fun getAppCount(): Int
-
     @Update
     suspend fun updateApp(app: BlockedAppEntity)
 

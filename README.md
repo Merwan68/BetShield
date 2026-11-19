@@ -92,10 +92,10 @@ BetShield requests only the minimal permissions necessary:
 | Permission | Purpose | Why It's Needed |
 | ---------- | ------- | --------------- |
 | `BIND_VPN_SERVICE` | Local DNS Interception | Enables the on-device TUN interface to filter gambling domains without routing traffic to external servers. |
-| `BIND_ACCESSIBILITY_SERVICE` | Real-Time App & URL Detection | Observes window transitions and browser address bars to detect and block gambling apps & sites immediately. |
-| `FOREGROUND_SERVICE_SPECIAL_USE` | Always-On VPN Guard | Keeps the local DNS VPN filter running reliably in the background. |
+| `BIND_ACCESSIBILITY_SERVICE` | Real-Time App Detection | Observes window transitions to detect when a gambling app opens. Prominently disclosed and strictly confined to package-name matching. |
+| `SYSTEM_ALERT_WINDOW` | Supportive Block Screen | Displays the "Access Blocked" overlay over target betting apps. |
 | `POST_NOTIFICATIONS` | Foreground Service Alert | Android requires a persistent notification when running long-term protection services. |
-| `INTERNET` | Upstream DNS Resolution | Forwards non-gambling DNS queries to upstream resolvers (1.1.1.1 / 8.8.8.8). |
+| `INTERNET` | Upstream DNS & Sync | Allows safe DNS queries to be resolved and updates the offline database when initiated. |
 
 ---
 

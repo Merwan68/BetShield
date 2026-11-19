@@ -47,12 +47,6 @@ interface BlockedDomainDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDomains(domains: List<BlockedDomainEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertDomainsIfAbsent(domains: List<BlockedDomainEntity>)
-
-    @Query("SELECT COUNT(*) FROM blocked_domains")
-    suspend fun getDomainCount(): Int
-
     @Update
     suspend fun updateDomain(domain: BlockedDomainEntity)
 

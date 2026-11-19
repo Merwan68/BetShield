@@ -12,43 +12,29 @@ data class DnsQuery(
     val domain: String,
     val qType: Int,
     val qClass: Int,
-    val dnsPayload: ByteArray,
-    val ipVersion: Int = 4,
-    val questionEndOffset: Int = dnsPayload.size
+    val dnsPayload: ByteArray
 )
 
 object DnsPacketHandler {
 
     /**
-     * Parses an IPv4 or IPv6 UDP DNS query packet on port 53. Returns null if not a valid DNS query.
+     * Parses an IPv4 UDP DNS packet. Returns null if not a valid DNS query on port 53.
      */
     fun parseQuery(buffer: ByteArray, length: Int): DnsQuery? {
         if (length < 28) return null
 
+        // Check IPv4 (version 4)
         val version = (buffer[0].toInt() and 0xF0) ushr 4
-        val ipHeaderLen: Int
-        val srcIp: ByteArray
-        val dstIp: ByteArray
+        if (version != 4) return null
 
-        when (version) {
-            4 -> {
-                ipHeaderLen = (buffer[0].toInt() and 0x0F) * 4
-                if (ipHeaderLen < 20 || ipHeaderLen + 8 > length) return null
-                // Protocol must be UDP (17)
-                if ((buffer[9].toInt() and 0xFF) != 17) return null
-                srcIp = buffer.copyOfRange(12, 16)
-                dstIp = buffer.copyOfRange(16, 20)
-            }
-            6 -> {
-                if (length < 48) return null
-                ipHeaderLen = 40
-                // Next Header must be UDP (17)
-                if ((buffer[6].toInt() and 0xFF) != 17) return null
-                srcIp = buffer.copyOfRange(8, 24)
-                dstIp = buffer.copyOfRange(24, 40)
-            }
-            else -> return null
-        }
+        val ipHeaderLen = (buffer[0].toInt() and 0x0F) * 4
+        if (ipHeaderLen < 20 || ipHeaderLen + 8 > length) return null
+
+        // Check UDP protocol (17)
+        if (buffer[9].toInt() != 17) return null
+
+        val srcIp = buffer.copyOfRange(12, 16)
+        val dstIp = buffer.copyOfRange(16, 20)
 
         val udpOffset = ipHeaderLen
         val srcPort = ((buffer[udpOffset].toInt() and 0xFF) shl 8) or (buffer[udpOffset + 1].toInt() and 0xFF)
@@ -58,7 +44,7 @@ object DnsPacketHandler {
         if (dstPort != 53) return null
 
         val udpLen = ((buffer[udpOffset + 4].toInt() and 0xFF) shl 8) or (buffer[udpOffset + 5].toInt() and 0xFF)
-        if (udpLen < 8 || udpOffset + udpLen > length) return null
+        if (udpOffset + udpLen > length) return null
 
         val dnsOffset = udpOffset + 8
         val dnsLen = udpLen - 8
@@ -68,7 +54,7 @@ object DnsPacketHandler {
         val transactionId = ((dnsPayload[0].toInt() and 0xFF) shl 8) or (dnsPayload[1].toInt() and 0xFF)
         val flags = ((dnsPayload[2].toInt() and 0xFF) shl 8) or (dnsPayload[3].toInt() and 0xFF)
 
-        // QR bit must be 0 (query)
+        // Check if QR bit is 0 (query)
         if ((flags and 0x8000) != 0) return null
 
         val qdCount = ((dnsPayload[4].toInt() and 0xFF) shl 8) or (dnsPayload[5].toInt() and 0xFF)
@@ -84,7 +70,7 @@ object DnsPacketHandler {
                 pos++
                 break
             }
-            // Compression pointer guard
+            // Check for compression pointer (should not occur in root question, but handle safely)
             if ((labelLen and 0xC0) == 0xC0) {
                 pos += 2
                 break
@@ -104,9 +90,8 @@ object DnsPacketHandler {
         if (pos + 4 > dnsLen) return null
         val qType = ((dnsPayload[pos].toInt() and 0xFF) shl 8) or (dnsPayload[pos + 1].toInt() and 0xFF)
         val qClass = ((dnsPayload[pos + 2].toInt() and 0xFF) shl 8) or (dnsPayload[pos + 3].toInt() and 0xFF)
-        val questionEndOffset = pos + 4
 
-        val domain = domainBuilder.toString().trim().trimEnd('.').lowercase()
+        val domain = domainBuilder.toString().lowercase()
 
         return DnsQuery(
             srcIp = srcIp,
@@ -118,96 +103,68 @@ object DnsPacketHandler {
             domain = domain,
             qType = qType,
             qClass = qClass,
-            dnsPayload = dnsPayload,
-            ipVersion = version,
-            questionEndOffset = questionEndOffset
+            dnsPayload = dnsPayload
         )
     }
 
     /**
-     * Builds a synthetic DNS response packet resolving blocked domains to 0.0.0.0 (A),
-     * :: (AAAA), or NXDOMAIN for other record types (e.g., HTTPS/SVCB).
+     * Builds a DNS response packet resolving the blocked domain to 0.0.0.0 (A record) or NXDOMAIN.
      */
     fun buildBlockedResponse(query: DnsQuery): ByteArray {
-        val safeEnd = query.questionEndOffset.coerceIn(12, query.dnsPayload.size)
-        val questionBytes = query.dnsPayload.copyOfRange(12, safeEnd)
+        val questionBytes = query.dnsPayload.copyOfRange(12, query.dnsPayload.size)
 
         val dnsResponse = ByteBuffer.allocate(512)
         // Transaction ID
         dnsResponse.putShort(query.dnsTransactionId.toShort())
+        // Flags: Standard query response, Authoritative, Recursion Desired, Recursion Available
+        dnsResponse.putShort(0x8180.toShort())
+        // QDCOUNT: 1
+        dnsResponse.putShort(1)
+        // ANCOUNT: 1 if A record (qType == 1), else 0
+        if (query.qType == 1) {
+            dnsResponse.putShort(1)
+        } else {
+            dnsResponse.putShort(0)
+        }
+        // NSCOUNT: 0
+        dnsResponse.putShort(0)
+        // ARCOUNT: 0
+        dnsResponse.putShort(0)
 
-        when (query.qType) {
-            1 -> {
-                // Type A -> NOERROR, 1 answer (0.0.0.0)
-                dnsResponse.putShort(0x8180.toShort())
-                dnsResponse.putShort(1) // QDCOUNT
-                dnsResponse.putShort(1) // ANCOUNT
-                dnsResponse.putShort(0) // NSCOUNT
-                dnsResponse.putShort(0) // ARCOUNT
-                dnsResponse.put(questionBytes)
-                dnsResponse.putShort(0xC00C.toShort())
-                dnsResponse.putShort(1) // Type A
-                dnsResponse.putShort(1) // Class IN
-                dnsResponse.putInt(60) // TTL
-                dnsResponse.putShort(4) // RDLENGTH
-                dnsResponse.put(byteArrayOf(0, 0, 0, 0))
-            }
-            28 -> {
-                // Type AAAA -> NOERROR, 1 answer (::)
-                dnsResponse.putShort(0x8180.toShort())
-                dnsResponse.putShort(1) // QDCOUNT
-                dnsResponse.putShort(1) // ANCOUNT
-                dnsResponse.putShort(0) // NSCOUNT
-                dnsResponse.putShort(0) // ARCOUNT
-                dnsResponse.put(questionBytes)
-                dnsResponse.putShort(0xC00C.toShort())
-                dnsResponse.putShort(28) // Type AAAA
-                dnsResponse.putShort(1) // Class IN
-                dnsResponse.putInt(60) // TTL
-                dnsResponse.putShort(16) // RDLENGTH
-                dnsResponse.put(ByteArray(16)) // ::
-            }
-            else -> {
-                // HTTPS/SVCB/TXT/etc. -> NXDOMAIN (0x8183)
-                dnsResponse.putShort(0x8183.toShort())
-                dnsResponse.putShort(1) // QDCOUNT
-                dnsResponse.putShort(0) // ANCOUNT
-                dnsResponse.putShort(0) // NSCOUNT
-                dnsResponse.putShort(0) // ARCOUNT
-                dnsResponse.put(questionBytes)
-            }
+        // Question section
+        dnsResponse.put(questionBytes)
+
+        // Answer section (if type A IPv4)
+        if (query.qType == 1) {
+            // Pointer to domain name in Question section (offset 12 = 0xC00C)
+            dnsResponse.putShort(0xC00C.toShort())
+            // Type: A (1)
+            dnsResponse.putShort(1)
+            // Class: IN (1)
+            dnsResponse.putShort(1)
+            // TTL: 60 seconds
+            dnsResponse.putInt(60)
+            // RDLENGTH: 4 bytes
+            dnsResponse.putShort(4)
+            // RDATA: 0.0.0.0 (Sinkhole loopback address)
+            dnsResponse.put(byteArrayOf(0, 0, 0, 0))
         }
 
         dnsResponse.flip()
         val dnsBytes = ByteArray(dnsResponse.remaining())
         dnsResponse.get(dnsBytes)
 
-        return wrapInIpUdp(query.ipVersion, query.dstIp, query.srcIp, query.dstPort, query.srcPort, dnsBytes)
+        return wrapInIpUdp(query.dstIp, query.srcIp, query.dstPort, query.srcPort, dnsBytes)
     }
 
     /**
-     * Wraps an upstream DNS response payload in IPv4/IPv6 + UDP directed back to the client.
+     * Wraps an upstream DNS response payload in IPv4 + UDP packet directed back to the original client.
      */
     fun buildForwardResponse(query: DnsQuery, upstreamDnsResponse: ByteArray): ByteArray {
-        return wrapInIpUdp(query.ipVersion, query.dstIp, query.srcIp, query.dstPort, query.srcPort, upstreamDnsResponse)
+        return wrapInIpUdp(query.dstIp, query.srcIp, query.dstPort, query.srcPort, upstreamDnsResponse)
     }
 
     private fun wrapInIpUdp(
-        ipVersion: Int,
-        srcIp: ByteArray,
-        dstIp: ByteArray,
-        srcPort: Int,
-        dstPort: Int,
-        payload: ByteArray
-    ): ByteArray {
-        return if (ipVersion == 6 && srcIp.size == 16 && dstIp.size == 16) {
-            wrapInIp6Udp(srcIp, dstIp, srcPort, dstPort, payload)
-        } else {
-            wrapInIp4Udp(srcIp, dstIp, srcPort, dstPort, payload)
-        }
-    }
-
-    private fun wrapInIp4Udp(
         srcIp: ByteArray,
         dstIp: ByteArray,
         srcPort: Int,
@@ -221,141 +178,43 @@ object DnsPacketHandler {
         // --- IPv4 Header (20 bytes) ---
         packet.put(0x45.toByte()) // Version 4, IHL 5
         packet.put(0x00.toByte()) // DSCP / ECN
-        packet.putShort(totalIpLen.toShort())
-        packet.putShort(0x0000.toShort())
-        packet.putShort(0x4000.toShort()) // Don't Fragment
+        packet.putShort(totalIpLen.toShort()) // Total Length
+        packet.putShort(0x0000.toShort()) // Identification
+        packet.putShort(0x4000.toShort()) // Flags (Don't Fragment), Fragment Offset 0
         packet.put(64.toByte()) // TTL
-        packet.put(17.toByte()) // Protocol UDP
+        packet.put(17.toByte()) // Protocol (UDP)
         packet.putShort(0x0000.toShort()) // Checksum placeholder
-        packet.put(srcIp)
-        packet.put(dstIp)
+        packet.put(srcIp) // Source IP
+        packet.put(dstIp) // Destination IP
 
-        val arr = packet.array()
-        val ipChecksum = computeChecksum(arr, 0, 20)
+        // Compute and insert IPv4 Checksum
+        val ipChecksum = computeIpChecksum(packet.array(), 0, 20)
         packet.putShort(10, ipChecksum.toShort())
 
         // --- UDP Header (8 bytes) ---
         packet.putShort(srcPort.toShort())
         packet.putShort(dstPort.toShort())
         packet.putShort(udpLen.toShort())
-        packet.putShort(0x0000.toShort()) // Placeholder
+        packet.putShort(0x0000.toShort()) // Zero checksum is valid in IPv4 UDP (RFC 768)
 
         // --- Payload ---
         packet.put(payload)
 
-        val udpChecksum = computeUdp4Checksum(srcIp, dstIp, arr, 20, udpLen)
-        packet.putShort(26, udpChecksum.toShort())
-
-        return arr
+        return packet.array()
     }
 
-    private fun wrapInIp6Udp(
-        srcIp: ByteArray,
-        dstIp: ByteArray,
-        srcPort: Int,
-        dstPort: Int,
-        payload: ByteArray
-    ): ByteArray {
-        val udpLen = 8 + payload.size
-        val totalLen = 40 + udpLen
-        val packet = ByteBuffer.allocate(totalLen)
-
-        // --- IPv6 Header (40 bytes) ---
-        packet.put(0x60.toByte()) // Version 6, Traffic Class 0
-        packet.put(0x00.toByte())
-        packet.put(0x00.toByte())
-        packet.put(0x00.toByte())
-        packet.putShort(udpLen.toShort()) // Payload Length
-        packet.put(17.toByte()) // Next Header: UDP (17)
-        packet.put(64.toByte()) // Hop Limit
-        packet.put(srcIp)
-        packet.put(dstIp)
-
-        // --- UDP Header (8 bytes) ---
-        packet.putShort(srcPort.toShort())
-        packet.putShort(dstPort.toShort())
-        packet.putShort(udpLen.toShort())
-        packet.putShort(0x0000.toShort()) // Mandatory checksum placeholder
-
-        // --- Payload ---
-        packet.put(payload)
-
-        val arr = packet.array()
-        val udpChecksum = computeUdp6Checksum(srcIp, dstIp, arr, 40, udpLen)
-        packet.putShort(46, udpChecksum.toShort())
-
-        return arr
-    }
-
-    private fun computeChecksum(data: ByteArray, offset: Int, length: Int): Int {
+    private fun computeIpChecksum(data: ByteArray, offset: Int, length: Int): Int {
         var sum = 0
         var i = offset
-        val end = offset + length
-        while (i + 1 < end) {
+        while (i < offset + length) {
             val high = data[i].toInt() and 0xFF
             val low = data[i + 1].toInt() and 0xFF
             sum += (high shl 8) or low
             i += 2
         }
-        if (i < end) {
-            sum += (data[i].toInt() and 0xFF) shl 8
+        while (sum shr 16 != 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
         }
-        while (sum ushr 16 != 0) {
-            sum = (sum and 0xFFFF) + (sum ushr 16)
-        }
-        return sum.inv() and 0xFFFF
-    }
-
-    private fun computeUdp4Checksum(
-        srcIp: ByteArray,
-        dstIp: ByteArray,
-        packet: ByteArray,
-        udpOffset: Int,
-        udpLen: Int
-    ): Int {
-        var sum = sumBytes(srcIp) + sumBytes(dstIp) + 17 + udpLen + sumBytesRange(packet, udpOffset, udpLen)
-        while (sum ushr 16 != 0) {
-            sum = (sum and 0xFFFF) + (sum ushr 16)
-        }
-        val result = sum.inv() and 0xFFFF
-        return if (result == 0) 0xFFFF else result
-    }
-
-    private fun computeUdp6Checksum(
-        srcIp: ByteArray,
-        dstIp: ByteArray,
-        packet: ByteArray,
-        udpOffset: Int,
-        udpLen: Int
-    ): Int {
-        var sum = sumBytes(srcIp) +
-            sumBytes(dstIp) +
-            (udpLen ushr 16) +
-            (udpLen and 0xFFFF) +
-            17 +
-            sumBytesRange(packet, udpOffset, udpLen)
-        while (sum ushr 16 != 0) {
-            sum = (sum and 0xFFFF) + (sum ushr 16)
-        }
-        val result = sum.inv() and 0xFFFF
-        return if (result == 0) 0xFFFF else result
-    }
-
-    private fun sumBytes(bytes: ByteArray): Int = sumBytesRange(bytes, 0, bytes.size)
-
-    private fun sumBytesRange(data: ByteArray, offset: Int, length: Int): Int {
-        var sum = 0
-        var i = offset
-        val end = offset + length
-        while (i + 1 < end) {
-            val high = data[i].toInt() and 0xFF
-            val low = data[i + 1].toInt() and 0xFF
-            sum += (high shl 8) or low
-            i += 2
-        }
-        if (i < end) {
-            sum += (data[i].toInt() and 0xFF) shl 8
-        }
-        return sum
+        return (sum.inv()) and 0xFFFF
     }
 }

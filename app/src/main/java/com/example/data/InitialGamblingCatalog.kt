@@ -6,7 +6,7 @@ import com.example.data.model.GamblingCategory
 
 object InitialGamblingCatalog {
 
-    const val INITIAL_CATALOG_VERSION = 3L
+    const val INITIAL_CATALOG_VERSION = 2L
 
     val defaultDomains: List<BlockedDomainEntity> by lazy {
         listOf(
@@ -15,12 +15,10 @@ object InitialGamblingCatalog {
             BlockedDomainEntity("dashbet.com", "DashBet Global", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("dashbet.et", "DashBet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("dashbet.net", "DashBet Network", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("dashbet.bet", "DashBet Mirror", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
 
             BlockedDomainEntity("zplaybet.xyz", "Zplay Bet XYZ", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("zplay.bet", "Zplay Bet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("zplaybet.com", "ZplayBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("zplaybet.net", "ZplayBet Net", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("zplay.et", "Zplay Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
 
             BlockedDomainEntity("melbet.com", "Melbet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
@@ -28,36 +26,25 @@ object InitialGamblingCatalog {
             BlockedDomainEntity("melbet.et", "Melbet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("melbet-et.com", "Melbet ET", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("melbet.co", "Melbet Co", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("melbet.ng", "Melbet Nigeria", GamblingCategory.SPORTS_BETTING.name, "NG"),
-            BlockedDomainEntity("melbet.ke", "Melbet Kenya", GamblingCategory.SPORTS_BETTING.name, "KE"),
 
             BlockedDomainEntity("1xbet.com", "1xBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("1xbet.mobi", "1xBet Mobile", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("1xbet.et", "1xBet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("1x-bet.com", "1x-Bet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("1xbet-et.com", "1xBet ET", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("1xbet.ng", "1xBet Nigeria", GamblingCategory.SPORTS_BETTING.name, "NG"),
-            BlockedDomainEntity("1xbet.ke", "1xBet Kenya", GamblingCategory.SPORTS_BETTING.name, "KE"),
-            BlockedDomainEntity("1xbit.com", "1xBit Crypto", GamblingCategory.CRYPTO_GAMBLING.name, "GLOBAL"),
 
             BlockedDomainEntity("mbs.bet", "MBS Bet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("mbsbet.com", "MBS Betting", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("mbsbet.et", "MBS Bet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("mbsbet.net", "MBS Bet Net", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
 
             BlockedDomainEntity("habeshabet.com", "HabeshaBet", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("habesha.bet", "Habesha.Bet", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("habeshabets.com", "HabeshaBets", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("habeshabet.et", "HabeshaBet ET", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("vamos.bet", "VamosBet", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("vamos.et", "Vamos ET", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("vamosbet.et", "VamosBet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("vamosbet.com", "VamosBet Global", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("hulusport.com", "HuluSport", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("hulusport.et", "HuluSport Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("hulusport.bet", "HuluSport Bet", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("winner.et", "Winner.et", GamblingCategory.SPORTS_BETTING.name, "ET"),
-            BlockedDomainEntity("winner.bet", "Winner Bet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("winnerbet.et", "WinnerBet Ethiopia", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("galaxybet.et", "GalaxyBet", GamblingCategory.SPORTS_BETTING.name, "ET"),
             BlockedDomainEntity("galaxybetting.com", "Galaxy Betting", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
@@ -69,12 +56,6 @@ object InitialGamblingCatalog {
             BlockedDomainEntity("sportpesa.co.ke", "SportPesa Kenya", GamblingCategory.SPORTS_BETTING.name, "KE"),
             BlockedDomainEntity("sportybet.com", "SportyBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("bet9ja.com", "Bet9ja", GamblingCategory.SPORTS_BETTING.name, "NG"),
-            BlockedDomainEntity("betking.com", "BetKing", GamblingCategory.SPORTS_BETTING.name, "NG"),
-            BlockedDomainEntity("msport.com", "MSport", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("premierbet.com", "Premier Bet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("meridianbet.com", "MeridianBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("mozzartbet.com", "MozzartBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("paripesa.com", "Paripesa", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("helabet.com", "Helabet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("megapari.com", "Megapari", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("parimatch.com", "Parimatch", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
@@ -83,11 +64,6 @@ object InitialGamblingCatalog {
             BlockedDomainEntity("linebet.com", "LineBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("mostbet.com", "MostBet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
             BlockedDomainEntity("betpawa.com", "BetPawa", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("1win.com", "1win", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("1win.pro", "1win Pro", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("gg.bet", "GG.BET", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("dafabet.com", "Dafabet", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
-            BlockedDomainEntity("betsson.com", "Betsson", GamblingCategory.SPORTS_BETTING.name, "EU"),
 
             // --- Major Global Sports Betting Platforms ---
             BlockedDomainEntity("bet365.com", "Bet365", GamblingCategory.SPORTS_BETTING.name, "GLOBAL"),
@@ -173,13 +149,6 @@ object InitialGamblingCatalog {
                 country = "GLOBAL"
             ),
             BlockedAppEntity(
-                packageName = "com.melbet.app",
-                appName = "Melbet App",
-                company = "Melbet",
-                category = GamblingCategory.SPORTS_BETTING.name,
-                country = "GLOBAL"
-            ),
-            BlockedAppEntity(
                 packageName = "com.melbet.android",
                 appName = "Melbet Android",
                 company = "Melbet",
@@ -189,13 +158,6 @@ object InitialGamblingCatalog {
             BlockedAppEntity(
                 packageName = "com.onexbet.mobile",
                 appName = "1xBet Mobile",
-                company = "1xCorp N.V.",
-                category = GamblingCategory.SPORTS_BETTING.name,
-                country = "GLOBAL"
-            ),
-            BlockedAppEntity(
-                packageName = "org.xbet.client1",
-                appName = "1xBet Client",
                 company = "1xCorp N.V.",
                 category = GamblingCategory.SPORTS_BETTING.name,
                 country = "GLOBAL"

@@ -40,7 +40,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,9 +58,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.service.AccessibilityHelper
 import com.example.service.DnsVpnService
 
@@ -71,31 +67,14 @@ fun PermissionSetupDialog(
 ) {
     val context = LocalContext.current
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-
     var hasNotification by remember {
         mutableStateOf(checkNotificationPermission(context))
     }
     var hasVpn by remember {
-        mutableStateOf(runCatching { VpnService.prepare(context) == null }.getOrDefault(false))
+        mutableStateOf(VpnService.prepare(context) == null)
     }
     var hasAccessibility by remember {
-        mutableStateOf(runCatching { AccessibilityHelper.isAccessibilityServiceEnabled(context) }.getOrDefault(false))
-    }
-
-    // Refresh all permission states whenever user returns from Settings or system dialogs
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotification = checkNotificationPermission(context)
-                hasVpn = runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
-                hasAccessibility = runCatching { AccessibilityHelper.isAccessibilityServiceEnabled(context) }.getOrDefault(false)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        mutableStateOf(AccessibilityHelper.isAccessibilityServiceEnabled(context))
     }
 
     // Notification launcher for Android 13+
@@ -108,8 +87,8 @@ fun PermissionSetupDialog(
     // VPN launcher
     val vpnLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        val granted = runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
+    ) { result ->
+        val granted = VpnService.prepare(context) == null
         hasVpn = granted
         if (granted) {
             DnsVpnService.start(context)
@@ -119,11 +98,7 @@ fun PermissionSetupDialog(
     // Auto-request notification permission on first launch if on Android 13+
     LaunchedEffect(Unit) {
         if (!hasNotification && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            try {
-                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -183,14 +158,9 @@ fun PermissionSetupDialog(
                     description = "Required to keep background protection active without Android stopping it.",
                     isGranted = hasNotification,
                     buttonText = "Allow Notification",
-                    buttonTestTag = "permission_grant_notification",
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            try {
-                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
                             hasNotification = true
                         }
@@ -206,18 +176,13 @@ fun PermissionSetupDialog(
                     description = "Filters sportsbook & casino domains across all browsers 100% locally on device.",
                     isGranted = hasVpn,
                     buttonText = "Enable VPN Guard",
-                    buttonTestTag = "permission_grant_vpn",
                     onClick = {
-                        try {
-                            val prepareIntent = VpnService.prepare(context)
-                            if (prepareIntent != null) {
-                                vpnLauncher.launch(prepareIntent)
-                            } else {
-                                hasVpn = true
-                                DnsVpnService.start(context)
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                        val prepareIntent = VpnService.prepare(context)
+                        if (prepareIntent != null) {
+                            vpnLauncher.launch(prepareIntent)
+                        } else {
+                            hasVpn = true
+                            DnsVpnService.start(context)
                         }
                     }
                 )
@@ -228,10 +193,9 @@ fun PermissionSetupDialog(
                 PermissionCard(
                     icon = Icons.Default.Visibility,
                     title = "App Interceptor (Accessibility)",
-                    description = "Detects and immediately closes gambling apps & in-browser betting URLs.",
+                    description = "Detects and immediately closes gambling apps (DraftKings, FanDuel, Stake, etc.).",
                     isGranted = hasAccessibility,
                     buttonText = "Enable in Settings",
-                    buttonTestTag = "permission_grant_accessibility",
                     onClick = {
                         try {
                             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
@@ -280,7 +244,6 @@ private fun PermissionCard(
     description: String,
     isGranted: Boolean,
     buttonText: String,
-    buttonTestTag: String,
     onClick: () -> Unit
 ) {
     Card(
@@ -340,9 +303,7 @@ private fun PermissionCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = onClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(buttonTestTag),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(text = buttonText, fontWeight = FontWeight.SemiBold)

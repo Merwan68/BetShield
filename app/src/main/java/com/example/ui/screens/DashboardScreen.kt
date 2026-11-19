@@ -49,7 +49,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,10 +65,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.example.service.AccessibilityHelper
 import com.example.service.DnsVpnService
 import com.example.ui.viewmodel.DashboardUiState
 
@@ -83,42 +78,15 @@ fun DashboardScreen(
     onNavigateToStats: () -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     var showPinDialog by remember { mutableStateOf(false) }
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
-    var isVpnGranted by remember {
-        mutableStateOf(runCatching { VpnService.prepare(context) == null }.getOrDefault(false))
-    }
-    var isAccessibilityEnabled by remember {
-        mutableStateOf(runCatching { AccessibilityHelper.isAccessibilityServiceEnabled(context) }.getOrDefault(false))
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                isVpnGranted = runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
-                isAccessibilityEnabled = runCatching { AccessibilityHelper.isAccessibilityServiceEnabled(context) }.getOrDefault(false)
-                if (state.isProtectionActive && isVpnGranted) {
-                    DnsVpnService.start(context)
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
     val vpnLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val granted = result.resultCode == android.app.Activity.RESULT_OK ||
-            runCatching { VpnService.prepare(context) == null }.getOrDefault(false)
-        isVpnGranted = granted
-        if (granted) {
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
             DnsVpnService.start(context)
         }
     }
@@ -290,36 +258,6 @@ fun DashboardScreen(
                     }
                 }
 
-                if (state.isProtectionActive && !isVpnGranted) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFF59E0B).copy(alpha = 0.2f))
-                            .clickable {
-                                try {
-                                    val prepareIntent = VpnService.prepare(context)
-                                    if (prepareIntent != null) {
-                                        vpnLauncher.launch(prepareIntent)
-                                    } else {
-                                        isVpnGranted = true
-                                        DnsVpnService.start(context)
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = "VPN permission needed to block gambling websites. Tap here to grant.",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFFFBBF24)
-                        )
-                    }
-                }
-
                 if (state.isUnderCooldown) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -387,24 +325,14 @@ fun DashboardScreen(
 
                 SetupItemRow(
                     title = "DNS Filtering Guard",
-                    subtitle = if (state.isProtectionActive && isVpnGranted)
-                        "Active: Blocking gambling websites in all browsers"
-                    else if (!isVpnGranted)
-                        "Tap to grant VPN permission for website blocking"
-                    else
-                        "Protection switch is currently paused",
-                    isActive = state.isProtectionActive && isVpnGranted,
+                    subtitle = "Blocks gambling domains in all browsers",
+                    isActive = state.isProtectionActive,
                     onClick = {
-                        try {
-                            val prepareIntent = VpnService.prepare(context)
-                            if (prepareIntent != null) {
-                                vpnLauncher.launch(prepareIntent)
-                            } else {
-                                isVpnGranted = true
-                                DnsVpnService.start(context)
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                        val prepareIntent = VpnService.prepare(context)
+                        if (prepareIntent != null) {
+                            vpnLauncher.launch(prepareIntent)
+                        } else {
+                            DnsVpnService.start(context)
                         }
                     }
                 )
@@ -413,10 +341,10 @@ fun DashboardScreen(
 
                 SetupItemRow(
                     title = "Accessibility App Interceptor",
-                    subtitle = if (isAccessibilityEnabled)
-                        "Actively monitoring & intercepting gambling apps & URLs"
+                    subtitle = if (com.example.service.AccessibilityHelper.isAccessibilityServiceEnabled(context))
+                        "Actively monitoring & intercepting gambling apps"
                     else "Tap to enable in Accessibility Settings",
-                    isActive = isAccessibilityEnabled,
+                    isActive = com.example.service.AccessibilityHelper.isAccessibilityServiceEnabled(context),
                     onClick = {
                         try {
                             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {

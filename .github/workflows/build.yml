@@ -25,11 +25,10 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
 
       - name: Prepare Build Environment (Keystore & Env)
         run: |
@@ -42,17 +41,17 @@ jobs:
             touch .env
           fi
 
-      - name: Prepare Gradle Wrapper
+      - name: Grant Execute Permission to Gradlew
         run: |
           if [ -f "./gradlew" ]; then
             chmod +x gradlew
           else
-            gradle wrapper --gradle-version 9.3.1
+            gradle wrapper
             chmod +x gradlew
           fi
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --continue --stacktrace
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
