@@ -41,42 +41,63 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         "com.chrome.beta",
         "com.chrome.canary",
         "com.chrome.dev",
+        "com.android.browser",
         "com.sec.android.app.sbrowser",
         "com.sec.android.app.sbrowser.beta",
         "org.mozilla.firefox",
         "org.mozilla.firefox_beta",
+        "org.mozilla.focus",
         "com.brave.browser",
         "com.opera.browser",
         "com.opera.mini.native",
+        "com.opera.gx",
+        "com.opera.touch",
         "com.microsoft.emmx",
         "com.duckduckgo.mobile.android",
         "com.ecosia.android",
-        "com.vivaldi.browser"
+        "com.vivaldi.browser",
+        "com.mi.globalbrowser",
+        "com.transsion.phoenix",
+        "com.UCMobile.intl",
+        "com.heytap.browser",
+        "com.coloros.browser",
+        "com.vivo.browser",
+        "com.huawei.browser",
+        "com.yandex.browser",
+        "com.kiwibrowser.browser"
     )
 
     override fun onCreate() {
         super.onCreate()
-        val db = AppDatabase.getInstance(this)
-        repository = BlockingRepository(
-            db.blockedDomainDao(),
-            db.blockedAppDao(),
-            db.blockEventDao(),
-            db.syncMetadataDao()
-        )
-        pinManager = PinManager(this)
+        try {
+            val db = AppDatabase.getInstance(this)
+            repository = BlockingRepository(
+                db.blockedDomainDao(),
+                db.blockedAppDao(),
+                db.blockEventDao(),
+                db.syncMetadataDao()
+            )
+            pinManager = PinManager(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         isConnected = true
 
-        val info = serviceInfo ?: AccessibilityServiceInfo()
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-        info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-        info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
-                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-        info.notificationTimeout = 50
-        serviceInfo = info
+        try {
+            val info = serviceInfo ?: AccessibilityServiceInfo()
+            info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS or
+                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            info.notificationTimeout = 50
+            serviceInfo = info
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         // Synchronize in-memory active package IDs
         serviceScope.launch {
@@ -90,7 +111,9 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // Synchronize in-memory active domain names
         serviceScope.launch {
             repository.activeDomainsFlow.collect { domains ->
-                val newSet = domains.filter { it.isActive && !it.isDeleted }.map { it.domain }.toSet()
+                val newSet = domains.filter { it.isActive && !it.isDeleted }
+                    .map { it.domain.trim().trimEnd('.').lowercase() }
+                    .toSet()
                 cachedBlockedDomains.clear()
                 cachedBlockedDomains.addAll(newSet)
             }
@@ -98,7 +121,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || !::pinManager.isInitialized) return
         val eventType = event.eventType
         if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -155,7 +178,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         // 2. Check if user is navigating to a gambling website in a web browser
         if (browserPackages.contains(pkgName)) {
-            val rootNode = rootInActiveWindow ?: return
+            val rootNode = try { rootInActiveWindow } catch (_: Exception) { null } ?: return
             val detectedDomain = extractDomainFromBrowser(rootNode)
             if (!detectedDomain.isNullOrBlank() && detectedDomain.contains(".")) {
                 val isDomainBlocked = cachedBlockedDomains.contains(detectedDomain) ||
@@ -168,7 +191,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     lastBlockedTarget = detectedDomain
                     lastBlockedTimestamp = now
 
-                    // Drop to Home or Back
+                    // Drop to Home
                     performGlobalAction(GLOBAL_ACTION_HOME)
 
                     serviceScope.launch {
@@ -196,9 +219,16 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.chrome.beta:id/url_bar",
             "com.sec.android.app.sbrowser:id/location_bar_edit_text",
             "org.mozilla.firefox:id/url_bar_title",
+            "org.mozilla.firefox:id/mozac_browser_toolbar_url_view",
             "org.mozilla.firefox:id/toolbar",
             "com.brave.browser:id/url_bar",
-            "com.microsoft.emmx:id/url_bar"
+            "com.opera.browser:id/url_field",
+            "com.opera.mini.native:id/url_field",
+            "com.microsoft.emmx:id/url_bar",
+            "com.duckduckgo.mobile.android:id/omnibarTextInput",
+            "com.vivaldi.browser:id/url_bar",
+            "com.mi.globalbrowser:id/url",
+            "com.transsion.phoenix:id/url"
         )
         for (id in candidateIds) {
             try {
@@ -206,22 +236,28 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 if (!nodes.isNullOrEmpty()) {
                     val text = nodes[0].text?.toString()
                     if (!text.isNullOrBlank()) {
-                        return cleanDomain(text)
+                        val cleaned = cleanDomain(text)
+                        if (cleaned.contains(".")) return cleaned
                     }
                 }
-            } catch (e: Exception) {
-                // Ignore
+            } catch (_: Exception) {
             }
         }
 
-        // Fallback: search top-level EditText nodes
+        // Fallback: search top-level EditText / URL-bar nodes
         return findDomainInNode(rootNode, 0)
     }
 
     private fun findDomainInNode(node: AccessibilityNodeInfo, depth: Int): String? {
-        if (depth > 4) return null
+        if (depth > 5) return null
         try {
-            if (node.className == "android.widget.EditText") {
+            val viewId = node.viewIdResourceName?.lowercase() ?: ""
+            val isUrlBarHint = node.className == "android.widget.EditText" ||
+                    viewId.contains("url") ||
+                    viewId.contains("omnibar") ||
+                    viewId.contains("location_bar") ||
+                    viewId.contains("address")
+            if (isUrlBarHint) {
                 val text = node.text?.toString()
                 if (!text.isNullOrBlank() && text.contains(".")) {
                     val cleaned = cleanDomain(text)
@@ -236,8 +272,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                     if (found != null) return found
                 }
             }
-        } catch (e: Exception) {
-            // Ignore
+        } catch (_: Exception) {
         }
         return null
     }
@@ -249,8 +284,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (text.startsWith("www.")) text = text.removePrefix("www.")
         text = text.substringBefore("/")
         text = text.substringBefore("?")
+        text = text.substringBefore("#")
         text = text.substringBefore(":")
-        return text.trim()
+        text = text.trim().trimEnd('.')
+        if (text.contains(" ")) return ""
+        return text
     }
 
     private fun launchBlockingScreen(target: String, serviceName: String, category: String) {

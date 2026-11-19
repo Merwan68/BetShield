@@ -52,7 +52,7 @@ class BlockingRepository(
 
     // Fast check for VPN DNS interceptor
     suspend fun isDomainBlocked(host: String): Boolean = withContext(Dispatchers.IO) {
-        val cleanHost = host.trim().lowercase().removePrefix("www.")
+        val cleanHost = normalizeHost(host)
         if (cleanHost.isBlank()) return@withContext false
 
         // Check exact match and any parent suffix domain (e.g., m.dash.bet -> dash.bet)
@@ -75,13 +75,19 @@ class BlockingRepository(
     }
 
     suspend fun getDomainDetails(domain: String): BlockedDomainEntity? = withContext(Dispatchers.IO) {
-        domainDao.getDomain(domain)
+        var current = normalizeHost(domain)
+        while (current.isNotBlank() && current.contains(".")) {
+            val found = domainDao.getDomain(current)
+            if (found != null) return@withContext found
+            current = current.substringAfter(".", "")
+        }
+        null
     }
 
     // Custom user-added rules
     suspend fun addCustomDomain(domain: String, serviceName: String, category: String): Boolean = withContext(Dispatchers.IO) {
-        val cleanDomain = domain.trim().lowercase().removePrefix("https://").removePrefix("http://").removePrefix("www.")
-        if (cleanDomain.isBlank()) return@withContext false
+        val cleanDomain = normalizeHost(domain)
+        if (cleanDomain.isBlank() || !cleanDomain.contains(".")) return@withContext false
 
         val entity = BlockedDomainEntity(
             domain = cleanDomain,
@@ -95,6 +101,13 @@ class BlockingRepository(
         )
         domainDao.insertDomain(entity)
         true
+    }
+
+    private fun normalizeHost(raw: String): String {
+        var text = raw.trim().lowercase()
+        text = text.removePrefix("https://").removePrefix("http://").removePrefix("www.")
+        text = text.substringBefore("/").substringBefore("?").substringBefore("#").substringBefore(":")
+        return text.trim().trimEnd('.')
     }
 
     suspend fun addCustomApp(packageName: String, appName: String, category: String): Boolean = withContext(Dispatchers.IO) {
