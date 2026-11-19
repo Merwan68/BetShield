@@ -15,6 +15,8 @@ jobs:
   build:
     name: Build & Test Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -25,15 +27,22 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Restore CI Debug Keystore Cache
+        uses: actions/cache@v4
+        with:
+          path: debug.keystore
+          key: betshield-ci-debug-keystore-v1
 
       - name: Prepare Build Environment (Keystore & Env)
         run: |
           if [ ! -f "debug.keystore" ]; then
-            echo "Generating debug.keystore for CI build..."
+            echo "Generating persistent CI debug.keystore..."
             keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
           if [ ! -f ".env" ]; then
@@ -41,26 +50,30 @@ jobs:
             touch .env
           fi
 
-      - name: Grant Execute Permission to Gradlew
+      - name: Prepare Gradle Wrapper
         run: |
           if [ -f "./gradlew" ]; then
             chmod +x gradlew
           else
-            gradle wrapper
+            gradle wrapper --gradle-version 9.3.1
             chmod +x gradlew
           fi
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --continue --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Prepare APK Artifact
+      - name: Prepare & Verify APK
         run: |
           mkdir -p artifacts
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/betshield-v1.0.0-debug.apk
-          echo "Debug APK successfully prepared at artifacts/betshield-v1.0.0-debug.apk"
+          APKSIGNER=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose artifacts/betshield-v1.0.0-debug.apk
+          fi
+          ls -lh artifacts/betshield-v1.0.0-debug.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -68,3 +81,17 @@ jobs:
           name: gambling-protection-apk
           path: artifacts/betshield-v1.0.0-debug.apk
           retention-days: 14
+
+      - name: Publish Direct-Install APK to GitHub Releases
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest artifacts/betshield-v1.0.0-debug.apk --clobber
+          else
+            gh release create latest artifacts/betshield-v1.0.0-debug.apk \
+              --target "${{ github.sha }}" \
+              --title "BetShield Latest APK" \
+              --notes "Tap **betshield-v1.0.0-debug.apk** below to download and install BetShield directly on your Android device (no ZIP extraction required)."
+          fi || echo "::notice::Could not publish to GitHub Releases automatically; download the APK from Actions Artifacts above or enable 'Read and write permissions' under Settings > Actions > General > Workflow permissions."

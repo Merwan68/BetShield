@@ -92,10 +92,10 @@ BetShield requests only the minimal permissions necessary:
 | Permission | Purpose | Why It's Needed |
 | ---------- | ------- | --------------- |
 | `BIND_VPN_SERVICE` | Local DNS Interception | Enables the on-device TUN interface to filter gambling domains without routing traffic to external servers. |
-| `BIND_ACCESSIBILITY_SERVICE` | Real-Time App Detection | Observes window transitions to detect when a gambling app opens. Prominently disclosed and strictly confined to package-name matching. |
-| `SYSTEM_ALERT_WINDOW` | Supportive Block Screen | Displays the "Access Blocked" overlay over target betting apps. |
+| `BIND_ACCESSIBILITY_SERVICE` | Real-Time App & URL Detection | Observes window transitions and browser address bars to detect and block gambling apps & sites immediately. |
+| `FOREGROUND_SERVICE_SPECIAL_USE` | Always-On VPN Guard | Keeps the local DNS VPN filter running reliably in the background. |
 | `POST_NOTIFICATIONS` | Foreground Service Alert | Android requires a persistent notification when running long-term protection services. |
-| `INTERNET` | Upstream DNS & Sync | Allows safe DNS queries to be resolved and updates the offline database when initiated. |
+| `INTERNET` | Upstream DNS Resolution | Forwards non-gambling DNS queries to upstream resolvers (1.1.1.1 / 8.8.8.8). |
 
 ---
 
@@ -126,11 +126,13 @@ You do not need to install Android Studio or the Android SDK on your personal co
 3. In the left sidebar, click **Build Android APK**.
 4. Click the **Run workflow** dropdown on the right, leave the branch as `main`, and click the green **Run workflow** button.
 
-### Step 3: Download the Generated APK
-1. Wait approximately 2–3 minutes for the build to turn green (✓).
-2. Click on the completed workflow run named **Build & Test Android APK**.
-3. Scroll down to the **Artifacts** section at the bottom of the page.
-4. Click on **gambling-protection-apk** to download the ZIP file containing `betshield-v1.0.0-debug.apk`.
+### Step 3: Download & Install the APK Directly on Your Phone
+1. Wait approximately 2–3 minutes for the workflow run **Build & Test Android APK** to turn green (✓).
+2. **Easiest (One-Tap Direct `.apk` Download — No ZIP):**
+   - Go to your repository's **Releases** page (`https://github.com/your-username/betshield/releases/latest`).
+   - Tap **`betshield-v1.0.0-debug.apk`** to download it directly and tap **Open → Install**.
+3. **Alternative (Actions Artifact `.zip`):**
+   - Open the green workflow run under **Actions**, scroll to **Artifacts**, download **`gambling-protection-apk`**, extract the `.zip` in your Android File Manager, and tap **`betshield-v1.0.0-debug.apk`** to install.
 
 ---
 
@@ -164,13 +166,15 @@ If you have Java and Android SDK installed locally:
 
 ## 📲 Installation & First-Time Device Configuration
 
-1. Transfer `betshield-v1.0.0-debug.apk` to your Android device via USB, Google Drive, or direct download.
-2. Open the file on your device and tap **Install** (if prompted, allow installing apps from your browser or file manager).
+1. Download `betshield-v1.0.0-debug.apk` from your GitHub **Releases** page (or transfer it to your Android phone).
+   > **Note:** If you previously installed an older test build (e.g., from AI Studio preview or an earlier CI run signed with a different key) and Android says *"App not installed"*, uninstall the old BetShield app first, then tap the APK to install.
+2. Tap the `.apk` file and choose **Install** (if prompted, allow **"Install unknown apps"** for Chrome or your File Manager).
 3. Open **BetShield**.
-4. Complete the 3-step setup:
-   - **Step 1:** Tap **Activate DNS Guard** and accept Android's system VPN prompt.
-   - **Step 2:** Tap **Enable App Detection** and toggle on BetShield in Android Accessibility Settings.
-   - **Step 3 (Optional):** Set a 4-to-6 digit **Protection PIN** to prevent impulsive disabling.
+4. Complete the 3-step setup prompted on launch:
+   - **Step 1:** Allow **Notifications** so background protection isn't stopped by Android.
+   - **Step 2:** Tap **Enable VPN Guard** and accept Android's system VPN prompt.
+   - **Step 3:** Tap **Enable in Settings** and turn on **BetShield Gambling App Protection** under Accessibility Settings.
+   - **Optional:** Set a 4-to-6 digit **Protection PIN** in the Security tab to prevent impulsive disabling.
 
 ---
 
